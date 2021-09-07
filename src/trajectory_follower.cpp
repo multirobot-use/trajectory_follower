@@ -12,6 +12,17 @@ const float YAW_PID_P{0.4};
 const float YAW_PID_I{0.02};
 const float YAW_PID_D{0.4};
 
+template <typename T>
+  inline bool safeGetParam(ros::NodeHandle &_nh, std::string const &_param_name,
+                           T &_param_value) {
+    if (!_nh.getParam(_param_name, _param_value)) {
+      ROS_ERROR("Failed to find parameter: %s",
+                _nh.resolveName(_param_name, true).c_str());
+      exit(1);
+    }
+    return true;
+  }
+
 struct State {
   Eigen::Vector3f position{0, 0, 0};
   Eigen::Quaternionf orientation{0, 0, 0, 0};
@@ -42,10 +53,10 @@ struct Trajectory {
 };
 
 struct Follower {
-  const double look_ahead{1.0};
+  double look_ahead{1.0};
   int pose_on_path{0};
-  const float rate{0.01};  // hz
-  const float step_size{0.1};
+  const float rate{0.01};  // sec
+  float step_size{0.2};
 
   std::chrono::time_point<std::chrono::high_resolution_clock> time_last_traj;
 
@@ -66,6 +77,8 @@ int main(int _argc, char **_argv) {
   Trajectory last_traj_received;
   State uav_state;
   Follower follower;
+  safeGetParam(pnh,"look_ahead", follower.look_ahead);
+  safeGetParam(pnh,"step_size", follower.step_size);
   //// ROS publishers and subscribers //////////
   ros::Publisher tracking_pub =
       nh.advertise<nav_msgs::Path>("follower/trajectory_to_follow", 1);
@@ -77,7 +90,6 @@ int main(int _argc, char **_argv) {
         last_traj_received.trajectory.resize(msg->points.size());
         follower.time_last_traj = std::chrono::high_resolution_clock::now();
         follower.pose_on_path = 0;
-
         geometry_msgs::PoseStamped pose_stamped;
         nav_msgs::Path path_to_publish;
         path_to_publish.header.frame_id = "map";
@@ -186,7 +198,7 @@ int main(int _argc, char **_argv) {
       ros::Duration(follower.rate).sleep();
     }
     ros::spinOnce();
-    ros::Duration(1).sleep();
+    ros::Duration(0.1).sleep();
   }
   return 0;
 }
@@ -229,6 +241,10 @@ Eigen::Vector3f Follower::calculate_vel(const Eigen::Vector3f &target_pose,
 
   Eigen::Vector3f vel_unitary = (target_pose - current_pose).normalized();
   double vel_module = (target_pose - current_pose).norm() /
+
                       (target_time - current_time.count());
+  if(vel_module<0) {
+	std::cerr<<"vel negative\n";
+	vel_module = 0.0;	}
   return vel_unitary * vel_module;
 }
