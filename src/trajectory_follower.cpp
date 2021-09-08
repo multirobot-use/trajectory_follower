@@ -197,8 +197,8 @@ int main(int _argc, char **_argv) {
       ros::spinOnce();
       ros::Duration(follower.rate).sleep();
     }
-    ros::spinOnce();
     ros::Duration(0.1).sleep();
+    ros::spinOnce();
   }
   return 0;
 }
