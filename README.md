@@ -7,3 +7,11 @@ H. Perez-Leon, J. J. Acevedo, I. Maza and A. Ollero, "A 4D trajectory follower b
 A software package with more functionalities such as trajectory interpolation or path following can be found here:
 
 https://github.com/hecperleo/upat_follower
+
+## Input
+
+You can publish your trajectories on "trajectory_to_follow" topic
+
+## Output
+
+The trajectory follower will compute the proper velocity to follow the trajectory. It is published in "ual/set_velocity"
