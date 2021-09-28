@@ -8,9 +8,9 @@
 #include <Eigen/Eigen>
 #include <chrono>
 
-const float YAW_PID_P{0.4};
+const float YAW_PID_P{0.1};
 const float YAW_PID_I{0.02};
-const float YAW_PID_D{0.4};
+const float YAW_PID_D{0.1};
 
 template <typename T>
   inline bool safeGetParam(ros::NodeHandle &_nh, std::string const &_param_name,
