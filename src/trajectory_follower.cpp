@@ -58,7 +58,8 @@ struct Follower {
   const float rate{0.01};  // sec
   float step_size{0.2};
 
-  std::chrono::time_point<std::chrono::high_resolution_clock> time_last_traj;
+  //std::chrono::time_point<std::chrono::high_resolution_clock> time_last_traj;
+  ros::Time time_last_traj;
 
   float calculateYawDiff(const float _desired_yaw, const float _current_yaw);
   int cal_pose_on_path(const std::vector<State> &trajectory,
@@ -88,13 +89,39 @@ int main(int _argc, char **_argv) {
       [&last_traj_received, &follower,
        tracking_pub](const trajectory_msgs::JointTrajectory::ConstPtr &msg) {
         last_traj_received.trajectory.resize(msg->points.size());
-        follower.time_last_traj = std::chrono::high_resolution_clock::now();
+        // follower.time_last_traj = std::chrono::high_resolution_clock::now(); // Use ros::Time::now(); ?
+        follower.time_last_traj = ros::Time::now(); // Necessary to change somehow from ros::Time to std::chrono 
         follower.pose_on_path = 0;
         geometry_msgs::PoseStamped pose_stamped;
         nav_msgs::Path path_to_publish;
         path_to_publish.header.frame_id = "map";
+        float time_point;
+        int   start_i = 0;
 
-        for (int i = 0; i < msg->points.size(); i++) {
+        // std::cout << "  Current time: " << follower.time_last_traj.toSec() << std::endl;
+        // std::cout << "  Time of the first point: " << msg->points[1].time_from_start.toSec() << std::endl;
+
+        // May be the responsible of the non-smooth trajectory. Comment this for loop
+        // for (int i = 0; i < msg->points.size(); i++){
+        //   if (follower.time_last_traj.toSec() < msg->points[i].time_from_start.toSec()){
+        //     start_i = i;
+        //     std::cout << "Start i: " << start_i << " with time: " << msg->points[i].time_from_start.toSec() << std::endl;
+        //     break;
+        //   }
+        // }
+
+        for (int i = start_i; i < msg->points.size(); i++) {
+          // TIMES are not being published in the topic. Generate them from ros::Time::now()
+          // std::cout << "Time from start for i = " << i << ": " << msg->points[i].time_from_start.toSec() << std::endl;
+
+          time_point = msg->points[i].time_from_start.toSec();
+          pose_stamped.header.stamp.sec  = int(time_point);
+          pose_stamped.header.stamp.nsec = int( (time_point - int(time_point))*1000000000 );
+
+          // Check
+          // std::cout << "  Sec:   " << pose_stamped.header.stamp.sec   << std::endl
+          //           << "  Nsec:  " << pose_stamped.header.stamp.nsec  << std::endl
+          //           << "  Total: " << follower.time_last_traj.toSec() << std::endl << std::endl;
           pose_stamped.pose.position.x = msg->points[i].positions[0];
           pose_stamped.pose.position.y = msg->points[i].positions[1];
           pose_stamped.pose.position.z = msg->points[i].positions[2];
@@ -166,6 +193,7 @@ int main(int _argc, char **_argv) {
       Eigen::Vector3f target_pose =
           last_traj_received.trajectory[target_pose_idx].position;
 
+      // Use ROS::Time::now() instead of std::chrono
       Eigen::Vector3f velocity_to_command = follower.calculate_vel(
           target_pose, uav_state.position,
           last_traj_received.trajectory[target_pose_idx].time);
@@ -236,13 +264,15 @@ int Follower::cal_pose_look_ahead(const std::vector<State> &trajectory) {
 Eigen::Vector3f Follower::calculate_vel(const Eigen::Vector3f &target_pose,
                                         const Eigen::Vector3f &current_pose,
                                         const float target_time) {
-  auto end = std::chrono::high_resolution_clock::now();
-  std::chrono::duration<float> current_time = end - time_last_traj;
+  ros::Time end = ros::Time::now();
+  ros::Duration current_time_ros = end - time_last_traj;
+  float current_time = current_time_ros.toSec();
 
   Eigen::Vector3f vel_unitary = (target_pose - current_pose).normalized();
   double vel_module = (target_pose - current_pose).norm() /
 
-                      (target_time - current_time.count());
+                      (target_time - current_time);
+
   if(vel_module<0) {
 	std::cerr<<"vel negative\n";
 	vel_module = 0.0;	}
