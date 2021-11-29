@@ -101,14 +101,14 @@ int main(int _argc, char **_argv) {
         // std::cout << "  Current time: " << follower.time_last_traj.toSec() << std::endl;
         // std::cout << "  Time of the first point: " << msg->points[1].time_from_start.toSec() << std::endl;
 
-        // May be the responsible of the non-smooth trajectory. Comment this for loop
-        // for (int i = 0; i < msg->points.size(); i++){
-        //   if (follower.time_last_traj.toSec() < msg->points[i].time_from_start.toSec()){
-        //     start_i = i;
-        //     std::cout << "Start i: " << start_i << " with time: " << msg->points[i].time_from_start.toSec() << std::endl;
-        //     break;
-        //   }
-        // }
+        // May appear some kind of "oscilatory" behaviour on the inspection distance. You can comment this "for" loop
+        for (int i = 0; i < msg->points.size(); i++){
+          if (follower.time_last_traj.toSec() < msg->points[i].time_from_start.toSec()){
+            start_i = i;
+            std::cout << "Start i: " << start_i << " with time: " << msg->points[i].time_from_start.toSec() << std::endl;
+            break;
+          }
+        }
 
         for (int i = start_i; i < msg->points.size(); i++) {
           // TIMES are not being published in the topic. Generate them from ros::Time::now()
@@ -273,6 +273,8 @@ Eigen::Vector3f Follower::calculate_vel(const Eigen::Vector3f &target_pose,
 
                       (target_time - current_time);
 
+  // std::cout << "Vel: " << vel_module << std::endl;
+  // std::cout << "Diff time: " << (target_time - current_time) << std::endl;
   if(vel_module<0) {
 	std::cerr<<"vel negative\n";
 	vel_module = 0.0;	}
