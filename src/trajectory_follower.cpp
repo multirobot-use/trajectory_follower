@@ -8,7 +8,7 @@
 #include <Eigen/Eigen>
 #include <chrono>
 
-const float YAW_PID_P{0.1};
+const float YAW_PID_P{0.2};
 const float YAW_PID_I{0.02};
 const float YAW_PID_D{0.1};
 
@@ -105,7 +105,7 @@ int main(int _argc, char **_argv) {
         for (int i = 0; i < msg->points.size(); i++){
           if (follower.time_last_traj.toSec() < msg->points[i].time_from_start.toSec()){
             start_i = i;
-            std::cout << "Start i: " << start_i << " with time: " << msg->points[i].time_from_start.toSec() << std::endl;
+            // std::cout << "Start i: " << start_i << " with time: " << msg->points[i].time_from_start.toSec() << std::endl;
             break;
           }
         }
