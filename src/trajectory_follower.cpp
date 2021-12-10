@@ -68,6 +68,7 @@ struct Follower {
   Eigen::Vector3f calculate_vel(const Eigen::Vector3f &target_pose,
                                 const Eigen::Vector3f &current_pose,
                                 const float target_time);
+  void calculate_look_ahead(const float &vel);
 };
 
 int main(int _argc, char **_argv) {
@@ -105,7 +106,7 @@ int main(int _argc, char **_argv) {
         for (int i = 0; i < msg->points.size(); i++){
           if (follower.time_last_traj.toSec() < msg->points[i].time_from_start.toSec()){
             start_i = i;
-            // std::cout << "Start i: " << start_i << " with time: " << msg->points[i].time_from_start.toSec() << std::endl;
+            std::cout << "Start i: " << start_i << " with time: " << msg->points[i].time_from_start.toSec() << std::endl;
             break;
           }
         }
@@ -176,11 +177,20 @@ int main(int _argc, char **_argv) {
   grvc::utils::PidController yaw_pid("yaw", YAW_PID_P, YAW_PID_I, YAW_PID_D);
 
   /////// main loop   //////////////
+  Eigen::Vector3f velocity_to_command(0.5, 0.5, 0);
   while (ros::ok) {
+    
     // wait for receiving trajectories
     while (!last_traj_received.trajectory.empty()) {
       follower.pose_on_path = follower.cal_pose_on_path(
           last_traj_received.trajectory, uav_state.position);
+      
+      if (velocity_to_command.norm() > 0.1){
+        follower.calculate_look_ahead(velocity_to_command.norm());
+      }
+      else{
+        safeGetParam(pnh,"look_ahead", follower.look_ahead);
+      }
       int target_pose_idx =
           follower.cal_pose_look_ahead(last_traj_received.trajectory);
       // if the point to go is out of the trajectory, the trajectory will be
@@ -194,7 +204,7 @@ int main(int _argc, char **_argv) {
           last_traj_received.trajectory[target_pose_idx].position;
 
       // Use ROS::Time::now() instead of std::chrono
-      Eigen::Vector3f velocity_to_command = follower.calculate_vel(
+      velocity_to_command = follower.calculate_vel(
           target_pose, uav_state.position,
           last_traj_received.trajectory[target_pose_idx].time);
 
@@ -273,10 +283,16 @@ Eigen::Vector3f Follower::calculate_vel(const Eigen::Vector3f &target_pose,
 
                       (target_time - current_time);
 
-  // std::cout << "Vel: " << vel_module << std::endl;
+  std::cout << "Vel: " << vel_module << std::endl;
   // std::cout << "Diff time: " << (target_time - current_time) << std::endl;
   if(vel_module<0) {
 	std::cerr<<"vel negative\n";
 	vel_module = 0.0;	}
   return vel_unitary * vel_module;
+}
+
+void Follower::calculate_look_ahead(const float &vel){
+  look_ahead = vel*3*step_size;
+
+  // std::cout << "Look ahead: " << look_ahead << std::endl;
 }

@@ -1,4 +1,4 @@
 #Params for trajectory follower
 
-step_size: 0.2 # seg
-look_ahead: 0.6  # m
+step_size: 0.2   # seg
+look_ahead: 0.15 # m
