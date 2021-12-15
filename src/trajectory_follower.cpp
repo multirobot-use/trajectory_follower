@@ -28,6 +28,7 @@ struct State {
   Eigen::Quaternionf orientation{0, 0, 0, 0};
   Eigen::Vector3f vel{0, 0, 0};
   float time{0.0};
+  float real_time{0.0};
 };
 
 struct Trajectory {
@@ -57,6 +58,7 @@ struct Follower {
   int pose_on_path{0};
   const float rate{0.01};  // sec
   float step_size{0.2};
+  Trajectory *previous_trajectory = (Trajectory*)malloc(sizeof(Trajectory) * 2);
 
   //std::chrono::time_point<std::chrono::high_resolution_clock> time_last_traj;
   ros::Time time_last_traj;
@@ -89,72 +91,175 @@ int main(int _argc, char **_argv) {
   auto trajectoryCallback =
       [&last_traj_received, &follower,
        tracking_pub](const trajectory_msgs::JointTrajectory::ConstPtr &msg) {
-        last_traj_received.trajectory.resize(msg->points.size());
-        // follower.time_last_traj = std::chrono::high_resolution_clock::now(); // Use ros::Time::now(); ?
-        follower.time_last_traj = ros::Time::now(); // Necessary to change somehow from ros::Time to std::chrono 
+        // last_traj_received.trajectory.resize(msg->points.size());
+        follower.time_last_traj = ros::Time::now();
         follower.pose_on_path = 0;
         geometry_msgs::PoseStamped pose_stamped;
         nav_msgs::Path path_to_publish;
         path_to_publish.header.frame_id = "map";
         float time_point;
-        int   start_i = 0;
+        int start_i = 0;
+        int i = 0;
+        int p = 0;
 
-        // std::cout << "  Current time: " << follower.time_last_traj.toSec() << std::endl;
-        // std::cout << "  Time of the first point: " << msg->points[1].time_from_start.toSec() << std::endl;
+        std::cout << "Hello" << std::endl;
 
-        // May appear some kind of "oscilatory" behaviour on the inspection distance. You can comment this "for" loop
-        for (int i = 0; i < msg->points.size(); i++){
-          if (follower.time_last_traj.toSec() < msg->points[i].time_from_start.toSec()){
-            start_i = i;
-            std::cout << "Start i: " << start_i << " with time: " << msg->points[i].time_from_start.toSec() << std::endl;
+        // SECURITY MEASURE: Check times of the new trajectory in order to not execute
+        // points of the past
+        for (int it = 0; it < msg->points.size(); it++){
+          if (follower.time_last_traj.toSec() < msg->points[it].time_from_start.toSec()){
+            start_i = it;
+            // std::cout << "Start i: " << start_i << " with time: " << msg->points[i].time_from_start.toSec() << std::endl;
             break;
           }
         }
 
-        for (int i = start_i; i < msg->points.size(); i++) {
-          // TIMES are not being published in the topic. Generate them from ros::Time::now()
-          // std::cout << "Time from start for i = " << i << ": " << msg->points[i].time_from_start.toSec() << std::endl;
+        // std::cout << "Time last traj: " << follower.time_last_traj << std::endl;
+        // std::cout << "Time of the first point of the trajectory: " << msg->points[0].time_from_start << std::endl;
 
-          time_point = msg->points[i].time_from_start.toSec();
+        // SECURITY MEASURE: New trajectory received earlier than expected and the
+        // points to execute are planned for the future
+
+        // Adding to path_to_publish the points of the previous trajectory
+        // (from current time to the first point of the new trajectory received)
+
+        // std::cout << "Size: " << follower.previous_trajectory->trajectory.size() << std::endl;
+        std::cout << "Hello2" << std::endl;
+        // If previous trajectory is not empty
+        if (!follower.previous_trajectory->trajectory.empty() && 
+            (abs(follower.previous_trajectory->trajectory[0].position.norm() -
+            follower.previous_trajectory->trajectory[follower.previous_trajectory->trajectory.size() - 1].position.norm()) < 0.1)){
+          std::cout << "Hello20" << std::endl;
+          // If the trajectory received is not from the past
+          if (start_i == 0){
+            // std::cout << "start_i = 0!" << std::endl;
+            int i_p = follower.previous_trajectory->trajectory.size() - 1;
+
+            std::cout << "Current time: " << follower.time_last_traj.toSec() << std::endl;
+
+            std::cout << "Hello21" << std::endl;
+            // std::cout << "First time of previous trajectory: " << follower.previous_trajectory->trajectory[0].real_time << std::endl;
+            // std::cout << "Last time of previous trajectory: " << follower.previous_trajectory->trajectory[i_p].real_time << std::endl;
+
+            // Get the closer point in time (staring to the future) of the previous trajectory
+            // If the time of that point is greater or equal to the first point of the new trajectory, break
+            while ((follower.previous_trajectory->trajectory[i_p].real_time > (follower.time_last_traj.toSec() + follower.step_size)) && (i_p >= 0)){
+              i_p = i_p - 1;
+            }
+
+            std::cout << "Hello22" << std::endl;
+
+            // std::cout << "i_p: " << i_p << std::endl;
+            std::cout << "Time for that i_p: " << follower.previous_trajectory->trajectory[i_p].real_time << std::endl;
+
+            std::cout << "Time of the first point of the traj received: " << msg->points[0].time_from_start.toSec() << std::endl;
+
+            if (i_p > 0) {
+              for (int k = i_p;
+                  (k < follower.previous_trajectory->trajectory.size()) &&
+                  ((follower.previous_trajectory->trajectory[k].real_time + follower.step_size) < msg->points[0].time_from_start.toSec());
+                  k++, p++){
+                pose_stamped.header.stamp.sec  = int(follower.previous_trajectory->trajectory[k].real_time);
+                pose_stamped.header.stamp.nsec = int( (follower.previous_trajectory->trajectory[k].real_time -
+                                                      pose_stamped.header.stamp.sec)*1000000000 );
+
+                pose_stamped.pose.position.x = follower.previous_trajectory->trajectory[k].position(0);
+                pose_stamped.pose.position.y = follower.previous_trajectory->trajectory[k].position(1);
+                pose_stamped.pose.position.z = follower.previous_trajectory->trajectory[k].position(2);
+
+                last_traj_received.trajectory[p].position[0] =
+                    follower.previous_trajectory->trajectory[k].position(0);
+                last_traj_received.trajectory[p].position[1] =
+                    follower.previous_trajectory->trajectory[k].position(1);
+                last_traj_received.trajectory[p].position[2] =
+                    follower.previous_trajectory->trajectory[k].position(2);
+
+                last_traj_received.trajectory[p].orientation.x() =
+                    follower.previous_trajectory->trajectory[k].orientation.x();
+                last_traj_received.trajectory[p].orientation.y() =
+                    follower.previous_trajectory->trajectory[k].orientation.y();
+                last_traj_received.trajectory[p].orientation.z() =
+                    follower.previous_trajectory->trajectory[k].orientation.z();
+                last_traj_received.trajectory[p].orientation.w() =
+                    follower.previous_trajectory->trajectory[k].orientation.w();
+
+                last_traj_received.trajectory[p].vel[0] =
+                    follower.previous_trajectory->trajectory[k].vel(0);
+                last_traj_received.trajectory[p].vel[1] =
+                    follower.previous_trajectory->trajectory[k].vel(1);
+                last_traj_received.trajectory[p].vel[2] =
+                    follower.previous_trajectory->trajectory[k].vel(2);
+                
+                last_traj_received.trajectory[p].real_time =
+                    follower.previous_trajectory->trajectory[k].real_time;
+                
+                std::cout << "k: " << k << "   time: " << follower.previous_trajectory->trajectory[k].real_time << std::endl;
+
+                path_to_publish.poses.push_back(pose_stamped);
+              }
+              std::cout << "Added " << p << " points from previous trajectory" << std::endl;
+            }
+          }
+        }
+
+        last_traj_received.trajectory.resize(msg->points.size() + p);
+
+        std::cout << "Hello3" << std::endl;
+
+        // Adding to path_to_publish the points of the trajectory received
+        for (int j = start_i; j < msg->points.size(); i++, j++) {
+
+          // std::cout << "i: " << i << "   j: " << j << std::endl;
+
+          time_point = msg->points[j].time_from_start.toSec();
           pose_stamped.header.stamp.sec  = int(time_point);
           pose_stamped.header.stamp.nsec = int( (time_point - int(time_point))*1000000000 );
 
           // Check
-          // std::cout << "  Sec:   " << pose_stamped.header.stamp.sec   << std::endl
-          //           << "  Nsec:  " << pose_stamped.header.stamp.nsec  << std::endl
-          //           << "  Total: " << follower.time_last_traj.toSec() << std::endl << std::endl;
-          pose_stamped.pose.position.x = msg->points[i].positions[0];
-          pose_stamped.pose.position.y = msg->points[i].positions[1];
-          pose_stamped.pose.position.z = msg->points[i].positions[2];
+          // std::cout << "  Total: " << follower.time_last_traj.toSec() << std::endl << std::endl;
+          pose_stamped.pose.position.x = msg->points[j].positions[0];
+          pose_stamped.pose.position.y = msg->points[j].positions[1];
+          pose_stamped.pose.position.z = msg->points[j].positions[2];
 
-          last_traj_received.trajectory[i].position[0] =
-              msg->points[i].positions[0];
-          last_traj_received.trajectory[i].position[1] =
-              msg->points[i].positions[1];
-          last_traj_received.trajectory[i].position[2] =
-              msg->points[i].positions[2];
+          last_traj_received.trajectory[j+p].position[0] =
+              msg->points[j].positions[0];
+          last_traj_received.trajectory[j+p].position[1] =
+              msg->points[j].positions[1];
+          last_traj_received.trajectory[j+p].position[2] =
+              msg->points[j].positions[2];
 
-          last_traj_received.trajectory[i].orientation.x() =
-              msg->points[i].positions[3];
-          last_traj_received.trajectory[i].orientation.y() =
-              msg->points[i].positions[4];
-          last_traj_received.trajectory[i].orientation.z() =
-              msg->points[i].positions[5];
-          last_traj_received.trajectory[i].orientation.w() =
-              msg->points[i].positions[6];
+          last_traj_received.trajectory[j+p].orientation.x() =
+              msg->points[j].positions[3];
+          last_traj_received.trajectory[j+p].orientation.y() =
+              msg->points[j].positions[4];
+          last_traj_received.trajectory[j+p].orientation.z() =
+              msg->points[j].positions[5];
+          last_traj_received.trajectory[j+p].orientation.w() =
+              msg->points[j].positions[6];
 
-          last_traj_received.trajectory[i].vel[0] =
-              msg->points[i].velocities[0];
-          last_traj_received.trajectory[i].vel[1] =
-              msg->points[i].velocities[1];
-          last_traj_received.trajectory[i].vel[2] =
-              msg->points[i].velocities[2];
+          last_traj_received.trajectory[j+p].vel[0] =
+              msg->points[j].velocities[0];
+          last_traj_received.trajectory[j+p].vel[1] =
+              msg->points[j].velocities[1];
+          last_traj_received.trajectory[j+p].vel[2] =
+              msg->points[j].velocities[2];
+
+          last_traj_received.trajectory[j+p].real_time =
+              msg->points[j].time_from_start.toSec(); // It seems that we are not getting the correct time stamp
 
           path_to_publish.poses.push_back(pose_stamped);
         }
+        std::cout << "Hello4" << std::endl;
+
         last_traj_received.calculateTimes(follower.step_size);
+
+        // Refresh the previous trajectory and publish
+        follower.previous_trajectory->trajectory.clear();
+        std::memcpy(follower.previous_trajectory, &last_traj_received, sizeof(last_traj_received));
+        std::cout << "Hello5" << std::endl;
         tracking_pub.publish(path_to_publish);
       };
+
   auto sub_traj = pnh.subscribe<trajectory_msgs::JointTrajectory>(
       "trajectory_to_follow", 1, trajectoryCallback);
   // ual state subscriber
@@ -177,7 +282,9 @@ int main(int _argc, char **_argv) {
   grvc::utils::PidController yaw_pid("yaw", YAW_PID_P, YAW_PID_I, YAW_PID_D);
 
   /////// main loop   //////////////
-  Eigen::Vector3f velocity_to_command(0.5, 0.5, 0);
+
+  // Declare and initialize velocity_to_command
+  Eigen::Vector3f velocity_to_command(0.2, 0.2, 0);
   while (ros::ok) {
     
     // wait for receiving trajectories
@@ -283,7 +390,7 @@ Eigen::Vector3f Follower::calculate_vel(const Eigen::Vector3f &target_pose,
 
                       (target_time - current_time);
 
-  std::cout << "Vel: " << vel_module << std::endl;
+  // std::cout << "Vel: " << vel_module << std::endl;
   // std::cout << "Diff time: " << (target_time - current_time) << std::endl;
   if(vel_module<0) {
 	std::cerr<<"vel negative\n";
