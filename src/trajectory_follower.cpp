@@ -102,8 +102,6 @@ int main(int _argc, char **_argv) {
         int i = 0;
         int p = 0;
 
-        std::cout << "Hello" << std::endl;
-
         // SECURITY MEASURE: Check times of the new trajectory in order to not execute
         // points of the past
         for (int it = 0; it < msg->points.size(); it++){
@@ -124,20 +122,16 @@ int main(int _argc, char **_argv) {
         // (from current time to the first point of the new trajectory received)
 
         // std::cout << "Size: " << follower.previous_trajectory->trajectory.size() << std::endl;
-        std::cout << "Hello2" << std::endl;
         // If previous trajectory is not empty
         if (!follower.previous_trajectory->trajectory.empty() && 
             (abs(follower.previous_trajectory->trajectory[0].position.norm() -
             follower.previous_trajectory->trajectory[follower.previous_trajectory->trajectory.size() - 1].position.norm()) < 0.1)){
-          std::cout << "Hello20" << std::endl;
           // If the trajectory received is not from the past
           if (start_i == 0){
             // std::cout << "start_i = 0!" << std::endl;
             int i_p = follower.previous_trajectory->trajectory.size() - 1;
 
             std::cout << "Current time: " << follower.time_last_traj.toSec() << std::endl;
-
-            std::cout << "Hello21" << std::endl;
             // std::cout << "First time of previous trajectory: " << follower.previous_trajectory->trajectory[0].real_time << std::endl;
             // std::cout << "Last time of previous trajectory: " << follower.previous_trajectory->trajectory[i_p].real_time << std::endl;
 
@@ -146,8 +140,6 @@ int main(int _argc, char **_argv) {
             while ((follower.previous_trajectory->trajectory[i_p].real_time > (follower.time_last_traj.toSec() + follower.step_size)) && (i_p >= 0)){
               i_p = i_p - 1;
             }
-
-            std::cout << "Hello22" << std::endl;
 
             // std::cout << "i_p: " << i_p << std::endl;
             std::cout << "Time for that i_p: " << follower.previous_trajectory->trajectory[i_p].real_time << std::endl;
@@ -204,8 +196,6 @@ int main(int _argc, char **_argv) {
 
         last_traj_received.trajectory.resize(msg->points.size() + p);
 
-        std::cout << "Hello3" << std::endl;
-
         // Adding to path_to_publish the points of the trajectory received
         for (int j = start_i; j < msg->points.size(); i++, j++) {
 
@@ -245,18 +235,16 @@ int main(int _argc, char **_argv) {
               msg->points[j].velocities[2];
 
           last_traj_received.trajectory[j+p].real_time =
-              msg->points[j].time_from_start.toSec(); // It seems that we are not getting the correct time stamp
+              msg->points[j].time_from_start.toSec();
 
           path_to_publish.poses.push_back(pose_stamped);
         }
-        std::cout << "Hello4" << std::endl;
 
         last_traj_received.calculateTimes(follower.step_size);
 
         // Refresh the previous trajectory and publish
         follower.previous_trajectory->trajectory.clear();
         std::memcpy(follower.previous_trajectory, &last_traj_received, sizeof(last_traj_received));
-        std::cout << "Hello5" << std::endl;
         tracking_pub.publish(path_to_publish);
       };
 
