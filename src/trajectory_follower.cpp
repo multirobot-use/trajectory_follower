@@ -123,75 +123,80 @@ int main(int _argc, char **_argv) {
 
         // std::cout << "Size: " << follower.previous_trajectory->trajectory.size() << std::endl;
         // If previous trajectory is not empty
-        if (!follower.previous_trajectory->trajectory.empty() && 
-            (abs(follower.previous_trajectory->trajectory[0].position.norm() -
-            follower.previous_trajectory->trajectory[follower.previous_trajectory->trajectory.size() - 1].position.norm()) < 0.1)){
-          // If the trajectory received is not from the past
-          if (start_i == 0){
-            // std::cout << "start_i = 0!" << std::endl;
-            int i_p = follower.previous_trajectory->trajectory.size() - 1;
+        bool activate_traj_fusion = false;  // When using MAVROS, this upgrade does not work --> put false
+        if (activate_traj_fusion){
 
-            std::cout << "Current time: " << follower.time_last_traj.toSec() << std::endl;
-            // std::cout << "First time of previous trajectory: " << follower.previous_trajectory->trajectory[0].real_time << std::endl;
-            // std::cout << "Last time of previous trajectory: " << follower.previous_trajectory->trajectory[i_p].real_time << std::endl;
+          if (!follower.previous_trajectory->trajectory.empty() && 
+              (abs(follower.previous_trajectory->trajectory[0].position.norm() -
+              follower.previous_trajectory->trajectory[follower.previous_trajectory->trajectory.size() - 1].position.norm()) < 0.1)){
+            // If the trajectory received is not from the past
+            if (start_i == 0){
+              // std::cout << "start_i = 0!" << std::endl;
+              int i_p = follower.previous_trajectory->trajectory.size() - 1;
 
-            // Get the closer point in time (staring to the future) of the previous trajectory
-            // If the time of that point is greater or equal to the first point of the new trajectory, break
-            while ((follower.previous_trajectory->trajectory[i_p].real_time > (follower.time_last_traj.toSec() + follower.step_size)) && (i_p >= 0)){
-              i_p = i_p - 1;
-            }
+              std::cout << "Current time: " << follower.time_last_traj.toSec() << std::endl;
+              // std::cout << "First time of previous trajectory: " << follower.previous_trajectory->trajectory[0].real_time << std::endl;
+              // std::cout << "Last time of previous trajectory: " << follower.previous_trajectory->trajectory[i_p].real_time << std::endl;
 
-            // std::cout << "i_p: " << i_p << std::endl;
-            std::cout << "Time for that i_p: " << follower.previous_trajectory->trajectory[i_p].real_time << std::endl;
-
-            std::cout << "Time of the first point of the traj received: " << msg->points[0].time_from_start.toSec() << std::endl;
-
-            if (i_p > 0) {
-              for (int k = i_p;
-                  (k < follower.previous_trajectory->trajectory.size()) &&
-                  ((follower.previous_trajectory->trajectory[k].real_time + follower.step_size) < msg->points[0].time_from_start.toSec());
-                  k++, p++){
-                pose_stamped.header.stamp.sec  = int(follower.previous_trajectory->trajectory[k].real_time);
-                pose_stamped.header.stamp.nsec = int( (follower.previous_trajectory->trajectory[k].real_time -
-                                                      pose_stamped.header.stamp.sec)*1000000000 );
-
-                pose_stamped.pose.position.x = follower.previous_trajectory->trajectory[k].position(0);
-                pose_stamped.pose.position.y = follower.previous_trajectory->trajectory[k].position(1);
-                pose_stamped.pose.position.z = follower.previous_trajectory->trajectory[k].position(2);
-
-                last_traj_received.trajectory[p].position[0] =
-                    follower.previous_trajectory->trajectory[k].position(0);
-                last_traj_received.trajectory[p].position[1] =
-                    follower.previous_trajectory->trajectory[k].position(1);
-                last_traj_received.trajectory[p].position[2] =
-                    follower.previous_trajectory->trajectory[k].position(2);
-
-                last_traj_received.trajectory[p].orientation.x() =
-                    follower.previous_trajectory->trajectory[k].orientation.x();
-                last_traj_received.trajectory[p].orientation.y() =
-                    follower.previous_trajectory->trajectory[k].orientation.y();
-                last_traj_received.trajectory[p].orientation.z() =
-                    follower.previous_trajectory->trajectory[k].orientation.z();
-                last_traj_received.trajectory[p].orientation.w() =
-                    follower.previous_trajectory->trajectory[k].orientation.w();
-
-                last_traj_received.trajectory[p].vel[0] =
-                    follower.previous_trajectory->trajectory[k].vel(0);
-                last_traj_received.trajectory[p].vel[1] =
-                    follower.previous_trajectory->trajectory[k].vel(1);
-                last_traj_received.trajectory[p].vel[2] =
-                    follower.previous_trajectory->trajectory[k].vel(2);
-                
-                last_traj_received.trajectory[p].real_time =
-                    follower.previous_trajectory->trajectory[k].real_time;
-                
-                std::cout << "k: " << k << "   time: " << follower.previous_trajectory->trajectory[k].real_time << std::endl;
-
-                path_to_publish.poses.push_back(pose_stamped);
+              // Get the closer point in time (staring to the future) of the previous trajectory
+              // If the time of that point is greater or equal to the first point of the new trajectory, break
+              while ((follower.previous_trajectory->trajectory[i_p].real_time > (follower.time_last_traj.toSec() + follower.step_size)) && (i_p >= 0)){
+                i_p = i_p - 1;
               }
-              std::cout << "Added " << p << " points from previous trajectory" << std::endl;
+
+              // std::cout << "i_p: " << i_p << std::endl;
+              std::cout << "Time for that i_p: " << follower.previous_trajectory->trajectory[i_p].real_time << std::endl;
+
+              std::cout << "Time of the first point of the traj received: " << msg->points[0].time_from_start.toSec() << std::endl;
+
+              if (i_p > 0) {
+                for (int k = i_p;
+                    (k < follower.previous_trajectory->trajectory.size()) &&
+                    ((follower.previous_trajectory->trajectory[k].real_time + follower.step_size) < msg->points[0].time_from_start.toSec());
+                    k++, p++){
+                  pose_stamped.header.stamp.sec  = int(follower.previous_trajectory->trajectory[k].real_time);
+                  pose_stamped.header.stamp.nsec = int( (follower.previous_trajectory->trajectory[k].real_time -
+                                                        pose_stamped.header.stamp.sec)*1000000000 );
+
+                  pose_stamped.pose.position.x = follower.previous_trajectory->trajectory[k].position(0);
+                  pose_stamped.pose.position.y = follower.previous_trajectory->trajectory[k].position(1);
+                  pose_stamped.pose.position.z = follower.previous_trajectory->trajectory[k].position(2);
+
+                  last_traj_received.trajectory[p].position[0] =
+                      follower.previous_trajectory->trajectory[k].position(0);
+                  last_traj_received.trajectory[p].position[1] =
+                      follower.previous_trajectory->trajectory[k].position(1);
+                  last_traj_received.trajectory[p].position[2] =
+                      follower.previous_trajectory->trajectory[k].position(2);
+
+                  last_traj_received.trajectory[p].orientation.x() =
+                      follower.previous_trajectory->trajectory[k].orientation.x();
+                  last_traj_received.trajectory[p].orientation.y() =
+                      follower.previous_trajectory->trajectory[k].orientation.y();
+                  last_traj_received.trajectory[p].orientation.z() =
+                      follower.previous_trajectory->trajectory[k].orientation.z();
+                  last_traj_received.trajectory[p].orientation.w() =
+                      follower.previous_trajectory->trajectory[k].orientation.w();
+
+                  last_traj_received.trajectory[p].vel[0] =
+                      follower.previous_trajectory->trajectory[k].vel(0);
+                  last_traj_received.trajectory[p].vel[1] =
+                      follower.previous_trajectory->trajectory[k].vel(1);
+                  last_traj_received.trajectory[p].vel[2] =
+                      follower.previous_trajectory->trajectory[k].vel(2);
+                  
+                  last_traj_received.trajectory[p].real_time =
+                      follower.previous_trajectory->trajectory[k].real_time;
+                  
+                  std::cout << "k: " << k << "   time: " << follower.previous_trajectory->trajectory[k].real_time << std::endl;
+
+                  path_to_publish.poses.push_back(pose_stamped);
+                }
+                std::cout << "Added " << p << " points from previous trajectory" << std::endl;
+              }
             }
           }
+
         }
 
         last_traj_received.trajectory.resize(msg->points.size() + p);
