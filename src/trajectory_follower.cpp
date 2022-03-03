@@ -8,8 +8,8 @@
 #include <Eigen/Eigen>
 #include <chrono>
 
-const float YAW_PID_P{0.2};
-const float YAW_PID_I{0.02};
+const float YAW_PID_P{0.35};
+const float YAW_PID_I{0.2};
 const float YAW_PID_D{0.1};
 
 template <typename T>
