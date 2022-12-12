@@ -10,7 +10,7 @@ https://github.com/hecperleo/upat_follower
 
 ## Input
 
-You can publish your trajectories on "trajectory_to_follow" topic
+You can publish your trajectories on "trajectory_to_follow" topic, which has a trajectory_msgs::JointTrajectory format. It is very important to add the time stamp and the position to each point to make everything work.
 
 ## Output
 
